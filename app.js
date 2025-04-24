@@ -16,7 +16,9 @@ connectDB()
     console.error('❌ Database connection failed:', err);
     process.exit(1);
   });
+const dbRouter = require("./routers/db.router");
 
+app.use("/Db", dbRouter); 
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -39,3 +41,5 @@ app.use((error, req, res, next) => {
 });
 
 module.exports = app;
+
+

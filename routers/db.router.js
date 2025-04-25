@@ -31,6 +31,9 @@ router.get("/Data/Question/:Topicid/:Questionid", async (req, res) => {
     const { Topicid, Questionid } = req.params;
   
     try {
+      if(Topicid<=2){
+        res.json("No test cases provided for this topic.")
+      }
       const testcases = await getDatabyQuestionId((Topicid), (Questionid));
       res.json({ testcases });
     } catch (error) {

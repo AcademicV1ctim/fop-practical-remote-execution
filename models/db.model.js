@@ -1,7 +1,8 @@
+require('dotenv').config();
 const { MongoClient,ObjectId } = require('mongodb');
 
 // Replace with your own MongoDB URI
-const uri = 'mongodb+srv://nathaniel:JNHEvm8CaAGseOG0@project.xeh6kvh.mongodb.net/?retryWrites=true&w=majority&appName=Project';
+const uri = process.env.MONGODB_URI;
 const dbName = 'project';
 
 module.exports.getAllData = async function getAllData() {

@@ -3,8 +3,34 @@ require('dotenv').config();
 const path = require('path');
 const createError = require('http-errors');
 const connectDB = require('./db');
-
+const bodyParser = require('body-parser');
+const vm = require('vm');
 const app = express();
+app.use(bodyParser.json());
+
+function removeComments(code) {
+  return code
+    // Remove multiline comments (/* ... */ or /** ... */)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    // Remove single-line comments (// ...)
+    .replace(/\/\/.*/g, '')
+    // Trim extra whitespace
+    .trim();
+}
+
+
+app.post('/evaluate', (req, res) => {
+  const { code } = req.body;
+  const cleancode = removeComments(code);
+  if (!cleancode) {
+    return res.status(400).json({ success: false, error: 'No code provided.' });
+  }
+
+  console.log('📥 Received Code:\n', cleancode); 
+  res.json({ success: true, message: 'Code received successfully.' });
+});
+
+
 
 connectDB()
   .then(db => {

@@ -63,7 +63,7 @@ app.post('/evaluate', async (req, res) => {
       return res.status(400).json({ success: false, error: "Could not extract function name from code." });
     }
 
-    const runWithJudge0 = require('./judge0'); // Adjust path if needed
+    const runWithJudge0 = require('./judge0');
     const testResults = await runWithJudge0(cleancode, functionName, testcases);
 
     return res.json({
@@ -77,11 +77,6 @@ app.post('/evaluate', async (req, res) => {
     return res.status(500).json({ success: false, error: "Failed to fetch test cases or execute code." });
   }
 });
-
-
-// console.log('Latest Submission:', latestSubmission);
-
-
 
 module.exports = { latestSubmission};
 

@@ -30,7 +30,7 @@ async function runWithJudge0(cleancode, functionName, testcases) {
     try {
       const submissionRes = await axios.post(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
         source_code,
-        language_id: 63, // JavaScript (Node.js)
+        language_id: 63, 
         stdin: ''
       }, { headers: JUDGE0_HEADERS });
 

@@ -7,29 +7,83 @@ const bodyParser = require('body-parser');
 const vm = require('vm');
 const app = express();
 app.use(bodyParser.json());
+const axios = require('axios');
+let latestSubmission = null;
 
 function removeComments(code) {
   return code
-    // Remove multiline comments (/* ... */ or /** ... */)
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    // Remove single-line comments (// ...)
     .replace(/\/\/.*/g, '')
-    // Trim extra whitespace
+    .replace(/^\s*console\.log\s*\(.*?\);\s*$/gm, '')
+    .replace(/^\s*module\.exports\s*=\s*.*?;\s*$/gm, '')
+    .split('\n')
+    .filter(line => line.trim() !== '')
+    .join('\n')
     .trim();
 }
 
+app.post('/evaluate', async (req, res) => {
+  const { code, studentId, className, Topicid } = req.body;
+  let { Questionid } = req.body;
 
-app.post('/evaluate', (req, res) => {
-  const { code } = req.body;
   const cleancode = removeComments(code);
+
   if (!cleancode) {
     return res.status(400).json({ success: false, error: 'No code provided.' });
   }
 
-  console.log('📥 Received Code:\n', cleancode); 
-  res.json({ success: true, message: 'Code received successfully.' });
+  if (typeof Questionid === 'string' && /^q\d+$/i.test(Questionid)) {
+    Questionid = parseInt(Questionid.replace(/^q/i, ''));
+  }
+
+  latestSubmission = {
+    code: cleancode,
+    studentId,
+    className,
+    questionId: Questionid,
+    topicId: Topicid
+  };
+
+  console.log(latestSubmission);
+
+  try {
+    const testResponse = await axios.get(
+      `http://localhost:3000/Db/Data/Question/${Topicid}/${Questionid}`
+    );
+
+    const rawTestcases = testResponse.data.testcases;
+    const testcases = rawTestcases.map(({ _id, ...rest }) => rest);
+
+    console.log("✅ Test cases retrieved:", testcases);
+
+    const functionNameMatch = cleancode.match(/function\s+([a-zA-Z0-9_]+)/);
+    const functionName = functionNameMatch ? functionNameMatch[1] : null;
+
+    if (!functionName) {
+      return res.status(400).json({ success: false, error: "Could not extract function name from code." });
+    }
+
+    const runWithJudge0 = require('./judge0'); // Adjust path if needed
+    const testResults = await runWithJudge0(cleancode, functionName, testcases);
+
+    return res.json({
+      success: true,
+      message: 'Code executed and compared with test cases.',
+      results: testResults
+    });
+
+  } catch (error) {
+    console.error("❌ Failed to fetch test cases or run code:", error.message);
+    return res.status(500).json({ success: false, error: "Failed to fetch test cases or execute code." });
+  }
 });
 
+
+// console.log('Latest Submission:', latestSubmission);
+
+
+
+module.exports = { latestSubmission};
 
 
 connectDB()

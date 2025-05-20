@@ -24,8 +24,16 @@ async function runWithJudge0(cleancode, functionName, testcases) {
 
   for (const test of testcases) {
     await delay(1500);
-    const source_code = `${cleancode}console.log(${functionName}(${test.input.map(i => JSON.stringify(i)).join(', ')}));
-    `.trim();
+
+    let functionCall;
+    if (Array.isArray(test.input)) {
+      const args = test.input.map(i => JSON.stringify(i)).join(', ');
+      functionCall = `${functionName}(${args})`;
+    } else {
+      functionCall = `${functionName}(${test.input})`;
+    }
+
+    const source_code = `${cleancode}console.log(${functionCall});`.trim();
 
     try {
       const submissionRes = await axios.post(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {

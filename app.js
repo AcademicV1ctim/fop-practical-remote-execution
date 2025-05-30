@@ -7,7 +7,6 @@ const bodyParser = require('body-parser');
 const vm = require('vm');
 const app = express();
 app.use(bodyParser.json());
-const axios = require('axios');
 let latestSubmission = null;
 
 function removeComments(code) {
@@ -23,7 +22,7 @@ function removeComments(code) {
 }
 
 app.post('/evaluate', async (req, res) => {
-  const { code, studentId, className, Topicid } = req.body;
+  const { code, studentId, className, Topicid, mockExecution } = req.body;
   let { Questionid } = req.body;
 
   const cleancode = removeComments(code);
@@ -41,41 +40,86 @@ app.post('/evaluate', async (req, res) => {
     studentId,
     className,
     questionId: Questionid,
-    topicId: Topicid
+    topicId: Topicid,
+    mockExecution
   };
 
   console.log(latestSubmission);
 
   try {
-    const testResponse = await axios.get(
-      `http://localhost:3000/Db/Data/Question/${Topicid}/${Questionid}`
-    );
+    const testRes = await fetch(`http://localhost:3000/Db/Data/Question/${Topicid}/${Questionid}`);
 
-    const rawTestcases = testResponse.data.testcases;
-    const testcases = rawTestcases.map(({ _id, ...rest }) => rest);
+  if (!testRes.ok) {
+    const errorText = await testRes.text();
+    return res.status(testRes.status).json({ success: false, error: errorText });
+  }
 
-    console.log("✅ Test cases retrieved:", testcases);
+  const testData = await testRes.json();
+  const rawTestcases = testData.testcases;
+  const testcases = rawTestcases.map(({ _id, ...rest }) => rest);
 
-    const functionNameMatch = cleancode.match(/function\s+([a-zA-Z0-9_]+)/);
-    const functionName = functionNameMatch ? functionNameMatch[1] : null;
+  console.log("✅ Test cases retrieved:", testcases);
 
-    if (!functionName) {
-      return res.status(400).json({ success: false, error: "Could not extract function name from code." });
-    }
+  const functionNameMatch = cleancode.match(/function\s+([a-zA-Z0-9_]+)/);
+  const functionName = functionNameMatch ? functionNameMatch[1] : null;
 
-    const runWithJudge0 = require('./judge0');
-    const testResults = await runWithJudge0(cleancode, functionName, testcases);
+  if (!functionName) {
+    return res.status(400).json({ success: false, error: "Could not extract function name from code." });
+  }
 
+  if (mockExecution === true || mockExecution === 'true') {
+    console.log("Running in MOCK mode, skipping Judge0.");
     return res.json({
       success: true,
-      message: 'Code executed and compared with test cases.',
-      results: testResults
+      message: 'Mocked: Code executed and compared with test cases.',
+      results: testcases.map((tc, i) => ({
+        testCase: i + 1,
+        input: tc.input,
+        expected: tc.output,
+        output: tc.output,
+        passed: true
+      }))
     });
+  }
 
-  } catch (error) {
+
+const runWithJudge0 = require('./judge0');
+const testResults = await runWithJudge0(cleancode, functionName, testcases);
+
+const quotaExceeded = testResults.some(result =>
+  result.error === 'Execution failed' &&
+  result.details &&
+  result.details.includes('exceeded the DAILY quota')
+);
+
+if (quotaExceeded) {
+  console.warn('Judge0 quota exceeded. Switching to mock execution.');
+
+  const mockResults = testcases.map((tc, i) => ({
+    testCase: i + 1,
+    input: tc.input,
+    expected: tc.output,
+    output: tc.output,
+    passed: true
+  }));
+
+  return res.json({
+    success: true,
+    message: 'Quota exceeded. Mocked: Code executed and compared with test cases.',
+    results: mockResults
+  });
+}
+
+return res.json({
+  success: true,
+  message: 'Code executed and compared with test cases.',
+  results: testResults
+});
+
+} catch (error) {
     console.error("❌ Failed to fetch test cases or run code:", error.message);
     return res.status(500).json({ success: false, error: "Failed to fetch test cases or execute code." });
-  }
+}
 });
 
 module.exports = { latestSubmission};

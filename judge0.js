@@ -33,16 +33,29 @@ async function runWithJudge0(cleancode, functionName, testcases) {
       functionCall = `${functionName}(${test.input})`;
     }
 
-    const source_code = `${cleancode}console.log(${functionCall});`.trim();
+    const source_code = `${cleancode}\nconsole.log(${functionCall});`.trim();
 
     try {
-      const submissionRes = await axios.post(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
-        source_code,
-        language_id: 63, 
-        stdin: ''
-      }, { headers: JUDGE0_HEADERS });
+      const res = await fetch(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
+        method: 'POST',
+        headers: {
+          ...JUDGE0_HEADERS,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          source_code,
+          language_id: 63,
+          stdin: ''
+        })
+      });
 
-      const actual_output = submissionRes.data.stdout?.trim();
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText);
+      }
+
+      const data = await res.json();
+      const actual_output = data.stdout?.trim();
       const expected_output = String(test.expected_output).trim();
 
       testResults.push({
@@ -51,6 +64,7 @@ async function runWithJudge0(cleancode, functionName, testcases) {
         actual_output,
         passed: actual_output === expected_output
       });
+
     } catch (err) {
       testResults.push({
         input: test.input,

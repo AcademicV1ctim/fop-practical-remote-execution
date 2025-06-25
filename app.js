@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
 const createError = require('http-errors');
@@ -7,6 +8,7 @@ const bodyParser = require('body-parser');
 const vm = require('vm');
 const app = express();
 app.use(bodyParser.json());
+app.use(cors()); 
 let latestSubmission = null;
 
 function removeComments(code) {

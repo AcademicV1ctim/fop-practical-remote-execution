@@ -65,4 +65,25 @@ module.exports.getDatabyQuestionId = async function getDatabyQuestionId(Topicid,
       await client.close();
     }
   };
+
+module.exports.getQuestionById = async function getQuestionById(topicId, questionId) {
+    const client = new MongoClient(uri);
   
+    try {
+      await client.connect();
+      const db = client.db(dbName);
+      const collection = db.collection('questions');
+  
+      const question = await collection.findOne({
+        Topicid: parseInt(topicId, 10),
+        Questionid: parseInt(questionId, 10)
+      });
+  
+      return question;
+    } catch (error) {
+      console.error("Error fetching question:", error);
+      throw error;
+    } finally {
+      await client.close();
+    }
+};

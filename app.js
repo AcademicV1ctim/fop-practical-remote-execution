@@ -49,7 +49,7 @@ app.post('/evaluate', async (req, res) => {
   console.log(latestSubmission);
 
   try {
-    const testRes = await fetch(`http://localhost:3000/Db/Data/Question/${Topicid}/${Questionid}`);
+    const testRes = await fetch(`https://fop-practical-remote-execution.onrender.com/Db/Data/Question/${Topicid}/${Questionid}`);
 
   if (!testRes.ok) {
     const errorText = await testRes.text();

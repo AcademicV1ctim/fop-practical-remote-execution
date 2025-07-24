@@ -24,7 +24,7 @@ function removeComments(code) {
 }
 
 app.post('/evaluate', async (req, res) => {
-  const { code, studentId, className, Topicid, mockExecution } = req.body;
+  const { code, userId, ichat, Topicid, mockExecution } = req.body;
   let { Questionid } = req.body;
 
   const cleancode = removeComments(code);
@@ -39,8 +39,8 @@ app.post('/evaluate', async (req, res) => {
 
   latestSubmission = {
     code: cleancode,
-    studentId,
-    className,
+    userId: userId,
+    ichat: ichat,
     questionId: Questionid,
     topicId: Topicid,
     mockExecution

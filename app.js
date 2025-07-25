@@ -6,6 +6,7 @@ const createError = require('http-errors');
 const connectDB = require('./db');
 const bodyParser = require('body-parser');
 const vm = require('vm');
+const pool = require('./pgdb.js');
 const app = express();
 app.use(bodyParser.json());
 app.use(cors()); 
@@ -24,7 +25,7 @@ function removeComments(code) {
 }
 
 app.post('/evaluate', async (req, res) => {
-  const { code, userId, ichat, Topicid, mockExecution } = req.body;
+  const { code, id, ichat, Topicid, mockExecution } = req.body;
   let { Questionid } = req.body;
 
   const cleancode = removeComments(code);
@@ -39,7 +40,7 @@ app.post('/evaluate', async (req, res) => {
 
   latestSubmission = {
     code: cleancode,
-    userId: userId,
+    userId: id,
     ichat: ichat,
     questionId: Questionid,
     topicId: Topicid,
@@ -71,18 +72,38 @@ app.post('/evaluate', async (req, res) => {
 
   if (mockExecution === true || mockExecution === 'true') {
     console.log("Running in MOCK mode, skipping Judge0.");
-    return res.json({
-      success: true,
-      message: 'Mocked: Code executed and compared with test cases.',
-      results: testcases.map((tc, i) => ({
-        testCase: i + 1,
-        input: tc.input,
-        expected: tc.output,
-        output: tc.output,
-        passed: true
-      }))
-    });
+    const mockResults = testcases.map((tc, i) => ({
+    testCase: i + 1,
+      input: tc.input,
+      expected: tc.output,
+    output: tc.output,
+    passed: true
+  }));
+
+  try {
+    const checkAttempts = await pool.query(
+      'SELECT COUNT(*) FROM attempts WHERE user_id = $1 AND question_id = $2 AND topic_id = $3',
+      [id, Questionid, Topicid]
+    );
+    const attempt_number = parseInt(checkAttempts.rows[0].count) + 1;
+
+    await pool.query(
+      `INSERT INTO attempts (user_id, question_id, topic_id, attempt_number, is_correct)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, Questionid, Topicid, attempt_number, true]
+    );
+    console.log('✅ Mock attempt recorded in NeonDB');
+  } catch (mockDbErr) {
+    console.error('❌ Failed to insert mock attempt into NeonDB:', mockDbErr.message);
   }
+
+  return res.json({
+    success: true,
+    message: 'Mocked: Code executed and compared with test cases.',
+    results: mockResults,
+    status: true
+  });
+}
 
 
 const runWithJudge0 = require('./judge0');
@@ -108,14 +129,19 @@ if (quotaExceeded) {
   return res.json({
     success: true,
     message: 'Quota exceeded. Mocked: Code executed and compared with test cases.',
-    results: mockResults
+    results: mockResults,
+    status: true
   });
 }
+const allPassed = testResults.every(tc => tc.passed === true);
+const status = allPassed ? 'passed' : 'failed';
+console.log(status)
 
 return res.json({
   success: true,
   message: 'Code executed and compared with test cases.',
-  results: testResults
+  results: testResults,
+  status: status,
 });
 
 } catch (error) {
@@ -124,7 +150,7 @@ return res.json({
 }
 });
 
-module.exports = { latestSubmission};
+module.exports = {latestSubmission};
 
 
 connectDB()
@@ -156,7 +182,7 @@ app.use((req, res, next) => {
 // Error handler
 app.use((error, req, res, next) => {
   console.error(error);
-  res
+  res 
     .status(error.status || 500)
     .json({ error: error.message || 'Unknown Server Error!' });
 });

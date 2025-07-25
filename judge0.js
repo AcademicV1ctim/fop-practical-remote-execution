@@ -20,61 +20,70 @@ function delay(ms) {
  * @returns {Promise<Array>} - Returns array of test result objects
  */
 async function runWithJudge0(cleancode, functionName, testcases) {
-  const testResults = [];
+  const testCodeLines = [];
+  testCodeLines.push('const results = [];');
 
   for (const test of testcases) {
-    await delay(1500);
+    const args = Array.isArray(test.input)
+      ? test.input.map(i => JSON.stringify(i)).join(', ')
+      : JSON.stringify(test.input);
+    testCodeLines.push(`try { results.push(${functionName}(${args})); } catch (e) { results.push("Error"); }`);
+  }
 
-    let functionCall;
-    if (Array.isArray(test.input)) {
-      const args = test.input.map(i => JSON.stringify(i)).join(', ');
-      functionCall = `${functionName}(${args})`;
-    } else {
-      functionCall = `${functionName}(${test.input})`;
+  testCodeLines.push('console.log(JSON.stringify(results));');
+
+  const source_code = `${cleancode}\n${testCodeLines.join('\n')}`;
+
+  console.log('Submitting to Judge0:', {
+    source_code,
+    totalTestCases: testcases.length
+  });  
+
+  try {
+    const res = await fetch(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
+      method: 'POST',
+      headers: {
+        ...JUDGE0_HEADERS,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        source_code,
+        language_id: 63,
+        stdin: ''
+      })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText);
     }
 
-    const source_code = `${cleancode}\nconsole.log(${functionCall});`.trim();
+    const data = await res.json();
+    const raw_output = data.stdout?.trim();
 
-    try {
-      const res = await fetch(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
-        method: 'POST',
-        headers: {
-          ...JUDGE0_HEADERS,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          source_code,
-          language_id: 63,
-          stdin: ''
-        })
-      });
+    const outputArray = JSON.parse(raw_output);
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText);
-      }
-
-      const data = await res.json();
-      const actual_output = data.stdout?.trim();
+    const testResults = testcases.map((test, i) => {
       const expected_output = String(test.expected_output).trim();
+      const actual_output = String(outputArray[i]).trim();
 
-      testResults.push({
+      return {
         input: test.input,
         expected_output,
         actual_output,
         passed: actual_output === expected_output
-      });
+      };
+    });
 
-    } catch (err) {
-      testResults.push({
-        input: test.input,
-        error: 'Execution failed',
-        details: err.message
-      });
-    }
+    return testResults;
+
+  } catch (err) {
+    return [{
+      error: 'Execution failed',
+      details: err.message
+    }];
   }
-
-  return testResults;
 }
+
 
 module.exports = runWithJudge0;

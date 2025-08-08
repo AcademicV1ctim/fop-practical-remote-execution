@@ -25,7 +25,7 @@ function removeComments(code) {
 }
 
 app.post('/evaluate', async (req, res) => {
-  const { code, id, ichat, Topicid, mockExecution } = req.body;
+  const { code, id, ichat, Topicid, mockExecution, useCustomInput, customInput } = req.body;
   let { Questionid } = req.body;
 
   const cleancode = removeComments(code);
@@ -44,13 +44,15 @@ app.post('/evaluate', async (req, res) => {
     ichat: ichat,
     questionId: Questionid,
     topicId: Topicid,
-    mockExecution
+    mockExecution,
+    useCustomInput,
+    customInput
   };
 
   console.log(latestSubmission);
 
   try {
-    const testRes = await fetch(`https://fop-practical-remote-execution.onrender.com/Db/Data/Question/${Topicid}/${Questionid}`);
+    const testRes = await fetch(`http://localhost:3000/Db/Data/Question/${Topicid}/${Questionid}`);
 
   if (!testRes.ok) {
     const errorText = await testRes.text();
@@ -59,7 +61,49 @@ app.post('/evaluate', async (req, res) => {
 
   const testData = await testRes.json();
   const rawTestcases = testData.testcases;
-  const testcases = rawTestcases.map(({ _id, ...rest }) => rest);
+  let testcases = rawTestcases.map(({ _id, ...rest }) => rest);
+
+
+  if (useCustomInput && Array.isArray(customInput)) {
+    console.log("⚡ Using custom input:", customInput);
+
+    const functionNameMatch = cleancode.match(/function\s+([a-zA-Z0-9_]+)/);
+    const functionName = functionNameMatch ? functionNameMatch[1] : null;
+
+    if (!functionName) {
+      return res.status(400).json({ success: false, error: "Could not extract function name from code." });
+    }
+
+    
+    const customTestcases = [{ input: customInput }];
+
+    
+    const runWithJudge0 = require('./judge0');
+
+    if (mockExecution) {
+      const mockResults = [{
+        input: customInput,
+        output: null,
+        passed: true
+      }];
+
+      return res.json({
+        success: true,
+        message: "Mocked: Custom input executed.",
+        results: mockResults,
+        status: true
+      });
+    } else {
+      const results = await runWithJudge0(cleancode, functionName, customTestcases, true);
+
+      return res.json({
+        success: true,
+        message: "Custom input executed.",
+        results,
+        status: true
+      });
+    }
+  }
 
   console.log("✅ Test cases retrieved:", testcases);
 
@@ -91,7 +135,7 @@ app.post('/evaluate', async (req, res) => {
       `INSERT INTO attempts (user_id, question_id, topic_id, attempt_number, is_correct)
        VALUES ($1, $2, $3, $4, $5)`,
       [id, Questionid, Topicid, attempt_number, true]
-    );
+    );  
     console.log('✅ Mock attempt recorded in NeonDB');
   } catch (mockDbErr) {
     console.error('❌ Failed to insert mock attempt into NeonDB:', mockDbErr.message);

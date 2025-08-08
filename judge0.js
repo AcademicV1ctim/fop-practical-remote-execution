@@ -1,4 +1,3 @@
-
 const axios = require('axios');
 
 const JUDGE0_API = 'https://judge0-ce.p.rapidapi.com';
@@ -9,24 +8,27 @@ const JUDGE0_HEADERS = {
 };
 
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-  
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * Executes the given code against test cases using Judge0
  * @param {string} cleancode - The function code to run
  * @param {string} functionName - The name of the function to call
  * @param {Array} testcases - Array of test cases with { input, expected_output }
+ * @param {boolean} isCustomInput - True if running only one custom test case
  * @returns {Promise<Array>} - Returns array of test result objects
  */
-async function runWithJudge0(cleancode, functionName, testcases) {
+async function runWithJudge0(cleancode, functionName, testcases, isCustomInput = false) {
   const testCodeLines = [];
   testCodeLines.push('const results = [];');
 
+  
   for (const test of testcases) {
     const args = Array.isArray(test.input)
       ? test.input.map(i => JSON.stringify(i)).join(', ')
       : JSON.stringify(test.input);
+
     testCodeLines.push(`try { results.push(${functionName}(${args})); } catch (e) { results.push("Error"); }`);
   }
 
@@ -37,7 +39,7 @@ async function runWithJudge0(cleancode, functionName, testcases) {
   console.log('Submitting to Judge0:', {
     source_code,
     totalTestCases: testcases.length
-  });  
+  });
 
   try {
     const res = await fetch(`${JUDGE0_API}/submissions?base64_encoded=false&wait=true`, {
@@ -61,19 +63,53 @@ async function runWithJudge0(cleancode, functionName, testcases) {
     const data = await res.json();
     const raw_output = data.stdout?.trim();
 
-    const outputArray = JSON.parse(raw_output);
+    let outputArray;
+    try {
+      outputArray = JSON.parse(raw_output);
+    } catch (e) {
+      throw new Error(`Invalid output format from Judge0: ${raw_output}`);
+    }
 
     const testResults = testcases.map((test, i) => {
-      const expected_output = String(test.expected_output).trim();
-      const actual_output = String(outputArray[i]).trim();
-
+      let actual_output_raw = outputArray[i];
+    
+      let actual_output;
+      try {
+        actual_output = typeof actual_output_raw === "string"
+          ? JSON.parse(actual_output_raw)
+          : actual_output_raw;
+      } catch {
+        actual_output = actual_output_raw;
+      }
+    
+      if (isCustomInput) {
+        return {
+          input: test.input,
+          output: actual_output,
+          passed: true
+        };
+      }
+    
+      const expected_output_raw = test.expected ?? test.expected_output;
+      let expected_output;
+      try {
+        expected_output = typeof expected_output_raw === "string"
+          ? JSON.parse(expected_output_raw)
+          : expected_output_raw;
+      } catch {
+        expected_output = expected_output_raw;
+      }
+    
+      const passed = JSON.stringify(actual_output) === JSON.stringify(expected_output);
+    
       return {
         input: test.input,
         expected_output,
         actual_output,
-        passed: actual_output === expected_output
+        passed
       };
     });
+    
 
     return testResults;
 
@@ -84,6 +120,5 @@ async function runWithJudge0(cleancode, functionName, testcases) {
     }];
   }
 }
-
 
 module.exports = runWithJudge0;

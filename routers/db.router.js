@@ -27,21 +27,22 @@ router.get("/Data/Topic/:Topicid", async (req, res) => {
     }
 });
 
-router.get("/Data/Question/:Topicid/:Questionid", async (req, res) => {
-    const { Topicid, Questionid } = req.params;
-  
-    try {
-      if(Topicid<=2){
-        res.json("No test cases provided for this topic.")
-      }
-      const testcases = await getDatabyQuestionId((Topicid), (Questionid));
-      res.json({ testcases });
-    } catch (error) {
-      console.error("Error fetching testcases by Topicid and Questionid:", error);
-      res.status(500).json({ error: "Failed to fetch testcases" });
+  router.get("/Data/Question/:Topicid/:Questionid", async (req, res) => {
+  const { Topicid, Questionid } = req.params;
+
+  try {
+    if (Topicid <= 2) {
+      return res.json({ message: "No test cases provided for this topic." }); 
     }
-  });
-  
+
+    const testcases = await getDatabyQuestionId(Topicid, Questionid);
+    return res.json({ testcases }); 
+  } catch (error) {
+    console.error("Error fetching testcases by Topicid and Questionid:", error);
+    return res.status(500).json({ error: "Failed to fetch testcases" });
+  }
+});
+
 router.get('/questions/:topicId/:questionId', async (req, res) => {
     const { topicId, questionId } = req.params;
   
